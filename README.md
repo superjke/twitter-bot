@@ -1,3 +1,5 @@
+# Twitter bot
+
 ### Description
 A twitter bot for liking tweets and following users with similar interests.
 Twitter recently updated their HTML code which now uses dynamic class names, making it harder for bots like selenium to hook on static class names. This bot gets around this and works on the latest Twitter code (as of 29 Sept 2019).
