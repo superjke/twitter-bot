@@ -3,6 +3,7 @@ from selenium.webdriver.common.keys import Keys
 import time
 import random
 import helper
+import datetime
 
 class TwitterBot:
     def __init__(self, username, password):
@@ -22,14 +23,15 @@ class TwitterBot:
         email.send_keys(self.username)
         pwd.send_keys(self.password)
         pwd.send_keys(Keys.RETURN)
-        helper.wait_random_time(False)
+        helper.wait_random_time()
+
 
     def like_tweet_follow(self, hashtags):
         def get_latest_feed(hashtag):
             url = "https://twitter.com/search?q="+hashtag+"&src=recent_search_click&f=live"
             print("Requesting latest feed for '{}'".format(hashtag))
             bot.get(url)
-            helper.wait_random_time(False)
+            helper.wait_random_time()
 
 
         def get_tweet_links():
@@ -60,10 +62,13 @@ class TwitterBot:
                 try:
                     bot.find_element_by_xpath("//div[@data-testid='like']").click()
                     print("Liked tweet")
+                    return True
                 except Exception as e:
                     print("Failed to find like button:", e)
+                    return False
             else:
                 print("Tweet already liked")
+                return False
 
 
         def visit_user(profileLink):
@@ -108,9 +113,12 @@ class TwitterBot:
         bot = self.bot
         processedTweets = set()
         processedUsers = set()
-        followCount = 0
-        followLimit = 100
-        cooloffPeriod = 24 # hours
+        usersFollowedTemp = 0
+        totalUsersFollowed = 0
+        totalTweetsLiked = 0
+        followLimit = random.randint(2, 4)
+        cooloffPeriod = 2 # mins
+        nextAllowedFollowTime = datetime.datetime.now()
         
         while True:
             hashtag = hashtags[random.randint(0,len(hashtags)-1)]
@@ -118,10 +126,11 @@ class TwitterBot:
             tweetLinks = get_tweet_links()
             
             for link in tweetLinks:
-                if (helper.check_follow_limit(followCount, followLimit)):
-                    print("Follow limit of {} reached. Stopping for {} hours".format(followLimit, cooloffPeriod))
-                    time.sleep(cooloffPeriod * 60 * 60)
-                    followCount = 0
+                if (helper.check_follow_limit(usersFollowedTemp, followLimit)):
+                    print("Follow limit of {} reached. Will start following again in {} mins".format(followLimit, cooloffPeriod))
+                    nextAllowedFollowTime = datetime.datetime.now() + datetime.timedelta(minutes=cooloffPeriod)
+                    totalUsersFollowed += usersFollowedTemp
+                    usersFollowedTemp = 0
                     break
 
                 if link in processedTweets or "photo" in link:
@@ -129,24 +138,27 @@ class TwitterBot:
 
                 print("GET ", link)
                 bot.get(link)
-                helper.wait_random_time(False)
-                bot.execute_script("window.scrollTo(0, 150)")
+                helper.wait_random_time()
                 time.sleep(1)
-                like_tweet()
+                if (like_tweet()):
+                    totalTweetsLiked += 1
                 processedTweets.add(link)
-                helper.wait_random_time(False)
+                helper.wait_random_time()
 
-                userProfileLink = link.split("/status/")[0]
-                if userProfileLink in processedUsers:
-                    print("Skipping user {}. Already processed.".format(userProfileLink.split("twitter.com/")[1]))
-                    continue
-               
-                visit_user(userProfileLink)
-                helper.wait_random_time(False)
-                if (follow_user()):
-                    followCount += 1
-                processedUsers.add(userProfileLink)
-                
-                helper.wait_random_time(False)
-                
-            helper.wait_random_time(True)
+                if datetime.datetime.now() >= nextAllowedFollowTime:
+                    userProfileLink = link.split("/status/")[0]
+                    if userProfileLink in processedUsers:
+                        print("Skipping user {}. Already processed.".format(userProfileLink.split("twitter.com/")[1]))
+                        continue
+
+                    visit_user(userProfileLink)
+                    helper.wait_random_time()
+
+                    if (follow_user()):
+                        usersFollowedTemp += 1
+                    processedUsers.add(userProfileLink)
+                    
+                    helper.wait_random_time()
+
+            helper.printSessionSummary(totalUsersFollowed, totalTweetsLiked)
+            helper.wait_random_time()
